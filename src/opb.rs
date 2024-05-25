@@ -134,6 +134,7 @@ impl OpbMusic {
         Ok(())
     }
 
+    /// Parse an OPB file from a byte slice
     pub fn parse(bytes: &[u8]) -> Result<Self> {
         let input_len = bytes.len();
         let (file_id, bytes) = FileId::parse(bytes).context(ParseOpbSnafu)?;
@@ -193,6 +194,61 @@ impl OpbMusic {
         })
     }
 
+    /// Expand a command in this OPB file
+    /// into multiple OPL commands in the same lo/hi channel
+    #[cfg(feature = "std")]
+    pub fn expand_command(&self, cmd: &OpbCommand) -> Vec<OplCommand> {
+        match cmd {
+            OpbCommand::Opl(opl) => vec![opl.clone().into()],
+            OpbCommand::SetInstrument {
+                instr_index,
+                channel_mask,
+                mask,
+                mod_levels,
+                car_levels,
+            } => {
+                // find instrument
+                let instrument = self
+                    .instruments
+                    .get(instr_index.to_u32() as usize)
+                    .expect("Instrument index out of bounds");
+
+                let mut out = Vec::new();
+                eprintln!("SetInstrument command not supported yet");
+                out
+            }
+            OpbCommand::PlayInstrument {
+                instr_index,
+                channel_mask,
+                mask,
+                freq,
+                note,
+                mod_levels,
+                car_levels,
+            } => {
+                // find instrument
+                let instrument = self
+                    .instruments
+                    .get(instr_index.to_u32() as usize)
+                    .expect("Instrument index out of bounds");
+
+                eprintln!("PlayInstrument command not supported yet");
+                vec![]
+            }
+            OpbCommand::CombinedNote {
+                register,
+                freq,
+                note,
+                mod_levels,
+                car_levels,
+            } => {
+                eprintln!("CombinedNote command not supported yet");
+                vec![]
+            }
+        }
+    }
+
+    #[cfg(feature = "std")]
     fn encoded_header(&self) -> [u8; 20] {
         // do not trust size_bytes,
         // calculate expected size instead
@@ -223,6 +279,7 @@ impl OpbMusic {
         ]
     }
 
+    #[cfg(feature = "std")]
     fn calculate_size_bytes(&self) -> u32 {
         // 20 bytes for the header
         // 9 bytes for each instrument
@@ -351,6 +408,7 @@ impl Instrument {
         Ok((out, rest))
     }
 
+    #[cfg(feature = "std")]
     fn encoded(&self) -> [u8; 9] {
         [
             self.feedback,
@@ -783,6 +841,7 @@ impl OpbCommand {
         Ok(())
     }
 
+    #[cfg(feature = "std")]
     fn calculate_size_bytes(&self) -> u32 {
         match self {
             OpbCommand::Opl(_) => 2,
@@ -921,6 +980,7 @@ impl Chunk {
         Ok(())
     }
 
+    #[cfg(feature = "std")]
     fn calculate_size_bytes(&self) -> u32 {
         // up to 4 bytes for time_elapsed, command_count_lo, command_count_hi
         let count = self.time_elapsed.byte_length()
