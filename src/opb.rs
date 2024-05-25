@@ -53,7 +53,7 @@ pub enum Error {
     TruncatedOpb { expected: usize, actual: usize },
     /// Unsupported version {version}
     UnsupportedVersion { version: u8 },
-    /// Unsupported format {code} (only standard format is supported)
+    /// Unsupported format {format} (only standard format is supported)
     UnsupportedFormat { format: u8 },
     /// Command count too large to re-encode to OPB
     CommandCountTooLarge {

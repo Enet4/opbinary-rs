@@ -14,6 +14,19 @@ use snafu::ResultExt;
 
 use crate::data_types::Ascii;
 
+#[cfg(not(feature = "std"))]
+macro_rules! eprintln {
+    ($_: expr, ) => {
+        /* no-op */
+    };
+    ($_: expr, $_2: expr) => {
+        /* no-op */
+    };
+    ($_: expr, $_2: expr, $_3: expr) => {
+        /* no-op */
+    };
+}
+
 /// An error reading a VGM file
 #[cfg(feature = "std")]
 #[derive(Debug, Snafu)]
@@ -23,6 +36,21 @@ pub enum Error {
     ReadFile { source: std::io::Error },
     /// Failed to write the file
     WriteFile { source: std::io::Error },
+    /// Not a valid VGM file
+    InvalidVgm,
+    /// Failed to parse VGM data
+    ParseVgm { source: ParseError },
+    /// Failed to parse VGM command #{index}
+    ParseCommandVgm { index: u32, source: ParseError },
+    /// Unsupported VGM version {version:04x}
+    UnsupportedVersion { version: u32 },
+}
+
+/// An error reading a VGM file
+#[cfg(not(feature = "std"))]
+#[derive(Debug, Snafu)]
+#[non_exhaustive]
+pub enum Error {
     /// Not a valid VGM file
     InvalidVgm,
     /// Failed to parse VGM data
@@ -84,7 +112,7 @@ impl Vgm {
         let mut command_data = Vec::new();
 
         // read until EOF
-        let mut rest = &rest[..header.base_header.eof_offset as usize - 214];
+        let mut rest = &rest[..header.base_header.eof_offset as usize - 210];
         let mut i: u32 = 0;
 
         while !rest.is_empty() {
@@ -118,6 +146,9 @@ impl Vgm {
                 }
                 0x62 => Some(OplCommand::Wait735),
                 0x63 => Some(OplCommand::Wait882),
+                0x70..=0x7f => Some(OplCommand::SmallWait {
+                    n: command.code - 0x70,
+                }),
                 // YM3812 commands
                 0x5A => {
                     let address = command.operands[0];
@@ -146,6 +177,70 @@ impl Vgm {
             header: self.header,
             opl_commands,
         }
+    }
+
+    #[cfg(feature = "std")]
+    pub fn write_to_file(&self, file: impl AsRef<Path>) -> Result<()> {
+        use std::io::BufWriter;
+        let writer = BufWriter::new(std::fs::File::create(file).context(WriteFileSnafu)?);
+        self.write_to(writer)
+    }
+
+    #[cfg(feature = "std")]
+    pub fn write_to_vec(&self, out: &mut Vec<u8>) -> Result<()> {
+        self.write_to(out)?;
+        Ok(())
+    }
+
+    #[cfg(feature = "std")]
+    pub fn write_to(&self, writer: impl std::io::Write) -> Result<()> {
+        let mut writer = writer;
+
+        // encode header first
+        let encoded_header = self.encoded_header();
+        writer.write_all(&encoded_header).context(WriteFileSnafu)?;
+
+        // encode OPL commands
+        for command in &self.commands {
+            writer.write_all(&[command.code]).context(WriteFileSnafu)?;
+            writer
+                .write_all(&command.operands[..command.operand_size as usize])
+                .context(WriteFileSnafu)?;
+        }
+
+        Ok(())
+    }
+
+    #[cfg(feature = "std")]
+    fn encoded_header(&self) -> [u8; 256] {
+        // ignore total_samples and calculate it instead
+        let total_samples = self.calculate_total_samples();
+
+        let mut header = [0; 256];
+        header[..4].copy_from_slice(b"Vgm ");
+        header[4..8].copy_from_slice(&self.header.base_header.eof_offset.to_le_bytes());
+        header[8..12].copy_from_slice(&self.header.base_header.version.to_le_bytes());
+        header[0x14..0x18].copy_from_slice(&self.header.gd3_offset.to_le_bytes());
+        header[0x18..0x1c].copy_from_slice(&total_samples.to_le_bytes());
+        header[0x1c..0x20].copy_from_slice(&self.header.loop_offset.to_le_bytes());
+        header[0x20..0x24].copy_from_slice(&self.header.loop_samples.to_le_bytes());
+        header[0x50..0x54].copy_from_slice(&self.header.ym3812_clock.to_le_bytes());
+        header[0x5c..0x60].copy_from_slice(&self.header.ymf262_clock.to_le_bytes());
+        header
+    }
+
+    #[cfg(feature = "std")]
+    fn calculate_total_samples(&self) -> u32 {
+        self.commands
+            .iter()
+            .take_while(|command| command.code != 0x66)
+            .filter_map(|command| match command.code {
+                0x61 => Some(u16::from_le_bytes(command.operands[..2].try_into().unwrap()) as u32),
+                0x62 => Some(735),
+                0x63 => Some(882),
+                _ => None,
+            })
+            .sum()
     }
 }
 
@@ -326,6 +421,12 @@ pub enum OplCommand {
     /// Command of code `0x63`,
     /// to wait 882 samples.
     Wait882,
+    /// Command of code `0x7n` (Wait n+1 samples)
+    SmallWait {
+        /// The number of samples to wait minus 1
+        /// (n must range from 0 to 15)
+        n: u8,
+    },
 }
 
 impl fmt::Debug for OplCommand {
@@ -348,6 +449,7 @@ impl fmt::Debug for OplCommand {
             OplCommand::Wait { samples } => write!(f, "Wait {} samples", samples),
             OplCommand::Wait735 => write!(f, "Wait 735 samples"),
             OplCommand::Wait882 => write!(f, "Wait 882 samples"),
+            OplCommand::SmallWait { n: samples } => write!(f, "Wait {} samples", samples + 1),
         }
     }
 }
@@ -419,5 +521,46 @@ impl fmt::Debug for Command {
             self.code,
             &self.operands[..(self.operand_size as usize)]
         )
+    }
+}
+
+impl From<OplCommand> for Command {
+    fn from(value: OplCommand) -> Self {
+        match value {
+            OplCommand::Wait735 => Command {
+                code: 0x62,
+                operand_size: 0,
+                operands: [0; 8],
+            },
+            OplCommand::Wait882 => Command {
+                code: 0x63,
+                operand_size: 0,
+                operands: [0; 8],
+            },
+            OplCommand::SmallWait { n: samples } => Command {
+                code: 0x70 + samples,
+                operand_size: 0,
+                operands: [0; 8],
+            },
+            OplCommand::Wait { samples } => Command {
+                code: 0x61,
+                operand_size: 2,
+                operands: [samples as u8, (samples >> 8) as u8, 0, 0, 0, 0, 0, 0],
+            },
+            OplCommand::Opl2 { address, data } => Command {
+                code: 0x5A,
+                operand_size: 2,
+                operands: [address, data, 0, 0, 0, 0, 0, 0],
+            },
+            OplCommand::Opl3 {
+                port,
+                address,
+                data,
+            } => Command {
+                code: 0x5E + port,
+                operand_size: 2,
+                operands: [address, data, 0, 0, 0, 0, 0, 0],
+            },
+        }
     }
 }
