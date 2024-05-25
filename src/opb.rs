@@ -10,7 +10,7 @@ use alloc::vec::Vec;
 #[cfg(feature = "std")]
 use crate::registers::is_valid_opb_register;
 
-use crate::data_types::Uint7Plus;
+use crate::data_types::{Ascii, Uint7Plus};
 use snafu::ResultExt;
 
 /// An error reading an OPB file
@@ -136,7 +136,7 @@ impl OpbMusic {
 
     pub fn parse(bytes: &[u8]) -> Result<Self> {
         let input_len = bytes.len();
-        let (file_id, bytes) = FileId::parse(&bytes).context(ParseOpbSnafu)?;
+        let (file_id, bytes) = FileId::parse(bytes).context(ParseOpbSnafu)?;
 
         // check file ID portion to ensure it's an OPB file
         if file_id.code != *b"OPBin" {
@@ -151,7 +151,7 @@ impl OpbMusic {
             .fail();
         }
 
-        let (header, bytes) = Header::parse(&bytes).context(ParseOpbSnafu)?;
+        let (header, bytes) = Header::parse(bytes).context(ParseOpbSnafu)?;
 
         // check whether we have enough bytes to read the entire file
         if bytes.len() + (header.size as usize) < input_len {
@@ -174,13 +174,13 @@ impl OpbMusic {
         let mut bytes = bytes;
         let mut instruments = Vec::new();
         for _ in 0..header.instrument_count {
-            let (instrument, rest) = Instrument::parse(&bytes).context(ParseOpbSnafu)?;
+            let (instrument, rest) = Instrument::parse(bytes).context(ParseOpbSnafu)?;
             instruments.push(instrument);
             bytes = rest;
         }
         let mut chunks = Vec::new();
         for _ in 0..header.chunk_count {
-            let (chunk, rest) = Chunk::parse(&bytes).context(ParseOpbSnafu)?;
+            let (chunk, rest) = Chunk::parse(bytes).context(ParseOpbSnafu)?;
             chunks.push(chunk);
             bytes = rest;
         }
@@ -245,7 +245,7 @@ pub enum ParseError {
     InsufficientBytesAtIndex { context: &'static str, index: u32 },
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct FileId {
     /// "OPBin"
     pub code: [u8; 5],
@@ -253,6 +253,16 @@ pub struct FileId {
     pub version: u8,
     /// Must be 0x0
     pub zero: u8,
+}
+
+impl core::fmt::Debug for FileId {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("FileId")
+            .field("code", &Ascii(self.code))
+            .field("version", &self.version)
+            .field("zero", &self.zero)
+            .finish()
+    }
 }
 
 impl FileId {

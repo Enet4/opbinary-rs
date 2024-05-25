@@ -12,6 +12,8 @@ use alloc::vec::Vec;
 
 use snafu::ResultExt;
 
+use crate::data_types::Ascii;
+
 /// An error reading a VGM file
 #[cfg(feature = "std")]
 #[derive(Debug, Snafu)]
@@ -33,7 +35,7 @@ pub enum Error {
 
 pub type Result<T, E = Error> = core::result::Result<T, E>;
 
-/// Error parsing an OPB file or OPB file component
+/// Error parsing a VGM file or VGM file component
 #[derive(Debug, PartialEq, Snafu)]
 pub enum ParseError {
     /// Insufficient bytes to parse {context}
@@ -156,9 +158,9 @@ pub struct OplVgm {
 }
 
 /// Base header of all VGM files
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct BaseHeader {
-    /// "Vgm" ident
+    /// "Vgm " ident
     ///
     /// file identification (0x56 0x67 0x6d 0x20)
     pub ident: [u8; 4],
@@ -175,6 +177,16 @@ pub struct BaseHeader {
     /// This is used for backwards compatibility in players,
     /// and defines which header values are valid.
     pub version: u32,
+}
+
+impl core::fmt::Debug for BaseHeader {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("BaseHeader")
+            .field("ident", &Ascii(&self.ident))
+            .field("eof_offset", &self.eof_offset)
+            .field("version", &self.version)
+            .finish()
+    }
 }
 
 impl BaseHeader {

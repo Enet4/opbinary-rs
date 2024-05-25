@@ -1,5 +1,7 @@
 //! Data types used in the protocol.
 
+use core::fmt::Write as _;
+
 use snafu::Snafu;
 
 /// Error parsing an uint7+ value
@@ -85,7 +87,7 @@ impl Uint7Plus {
     pub fn parse(from: &[u8]) -> Result<(Self, &[u8]), ParseError> {
         // byte 0
         let byte0 = from
-            .get(0)
+            .first()
             .copied()
             .ok_or(ParseError::InsufficientBytes { byte: 0 })? as u32;
 
@@ -167,6 +169,37 @@ impl Uint7Plus {
         } else {
             4
         }
+    }
+}
+
+/// Display an array of bytes as ASCII text
+pub(crate) struct Ascii<T>(pub T);
+
+impl<T> core::fmt::Debug for Ascii<T>
+where
+    T: AsRef<[u8]>,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_char('"')?;
+        core::fmt::Display::fmt(self, f)?;
+        f.write_char('"')?;
+        Ok(())
+    }
+}
+
+impl<T> core::fmt::Display for Ascii<T>
+where
+    T: AsRef<[u8]>,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        for &byte in self.0.as_ref() {
+            if byte.is_ascii_graphic() {
+                write!(f, "{}", byte as char)?;
+            } else {
+                write!(f, "\\x{:02X}", byte)?;
+            }
+        }
+        Ok(())
     }
 }
 

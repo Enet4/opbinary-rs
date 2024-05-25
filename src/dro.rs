@@ -10,6 +10,8 @@ use snafu::ResultExt;
 #[cfg(feature = "std")]
 use std::path::Path;
 
+use crate::data_types::Ascii;
+
 /// An error reading or parsing a DRO file
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
@@ -134,7 +136,7 @@ impl Dro {
 }
 
 /// A DRO file header
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct FileHeader {
     /// `b"DBRAWOPL"` (not null-terminated)
     pub signature: [u8; 8],
@@ -169,6 +171,16 @@ impl FileHeader {
             },
             &input[4..],
         ))
+    }
+}
+
+impl core::fmt::Debug for FileHeader {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("FileHeader")
+            .field("signature", &Ascii(self.signature))
+            .field("version_major", &self.version_major)
+            .field("version_minor", &self.version_minor)
+            .finish()
     }
 }
 
