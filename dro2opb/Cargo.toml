@@ -1,0 +1,9 @@
+[package]
+name = "dro2opb"
+version = "0.1.0"
+description = "OPL converter: Converts a DRO file to an OPB file"
+edition = "2021"
+
+[dependencies]
+opbinary = { version = "0.1.0", path = ".." }
+snafu = "0.8.2"

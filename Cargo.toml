@@ -1,0 +1,18 @@
+[workspace]
+members = [".", "dro2opb", "vgm2opb"]
+
+[package]
+name = "opbinary"
+version = "0.1.0"
+description = " OPL Binary Music Format data parser and writer"
+edition = "2021"
+exclude = ["dro2opb"]
+
+[features]
+default = ["std"]
+std = ["snafu/std"]
+
+[dependencies.snafu]
+version = "0.8.2"
+default-features = false
+features = ["rust_1_61", "rust_1_65", "backtrace"]
