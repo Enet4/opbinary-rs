@@ -95,6 +95,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "opb2vgm"
+version = "0.1.0"
+dependencies = [
+ "opbinary",
+ "snafu",
+]
+
+[[package]]
 name = "opbinary"
 version = "0.1.0"
 dependencies = [
