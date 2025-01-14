@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "dro2opb", "opb2vgm", "vgm2opb"]
+members = [".", "dro2opb", "opb2vgm", "vgm2opb", "dro2vgm"]
 
 [package]
 name = "opbinary"
