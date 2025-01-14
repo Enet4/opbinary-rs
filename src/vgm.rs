@@ -59,8 +59,12 @@ pub enum Error {
     InvalidVgm,
     /// Failed to parse VGM data
     ParseVgm { source: ParseError },
-    /// Failed to parse VGM command #{index}
-    ParseCommandVgm { index: u32, source: ParseError },
+    /// Failed to parse VGM command #{index} (byte #{byte_offset})
+    ParseCommandVgm {
+        index: u32,
+        byte_offset: u32,
+        source: ParseError,
+    },
     /// Unsupported VGM version {version:04x}
     UnsupportedVersion { version: u32 },
 }
