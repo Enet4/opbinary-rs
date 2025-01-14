@@ -198,7 +198,15 @@ impl Vgm {
 
         // encode header first
         let encoded_header = self.encoded_header();
-        writer.write_all(&encoded_header).context(WriteFileSnafu)?;
+
+        let header_size = match self.header.base_header.version {
+            0..=0x0151 => 128,
+            _ => 256,
+        };
+
+        writer
+            .write_all(&encoded_header[..header_size])
+            .context(WriteFileSnafu)?;
 
         // encode OPL commands
         for command in &self.commands {
@@ -211,6 +219,9 @@ impl Vgm {
         Ok(())
     }
 
+    /// Note: 256 bytes are allocated,
+    /// But we may end up printing less than that
+    /// depending on the VGM version.
     #[cfg(feature = "std")]
     fn encoded_header(&self) -> [u8; 256] {
         // ignore total_samples and calculate it instead
@@ -375,6 +386,11 @@ impl OplPartialHeader {
         let ym3812_clock = u32::from_le_bytes(input[0x50..0x54].try_into().unwrap());
         let ymf262_clock = u32::from_le_bytes(input[0x5c..0x60].try_into().unwrap());
 
+        let header_size = match base_header.version {
+            0..=0x0151 => 128,
+            _ => 256,
+        };
+
         Ok((
             Self {
                 base_header,
@@ -385,7 +401,7 @@ impl OplPartialHeader {
                 ym3812_clock,
                 ymf262_clock,
             },
-            &input[0x80..],
+            &input[header_size..],
         ))
     }
 }
