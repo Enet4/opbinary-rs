@@ -40,8 +40,12 @@ pub enum Error {
     InvalidVgm,
     /// Failed to parse VGM data
     ParseVgm { source: ParseError },
-    /// Failed to parse VGM command #{index}
-    ParseCommandVgm { index: u32, source: ParseError },
+    /// Failed to parse VGM command #{index} (byte #{byte_offset})
+    ParseCommandVgm {
+        index: u32,
+        byte_offset: u32,
+        source: ParseError,
+    },
     /// Unsupported VGM version {version:04x}
     UnsupportedVersion { version: u32 },
 }
@@ -109,15 +113,27 @@ impl Vgm {
             .fail();
         }
 
+        let header_size = match header.base_header.version {
+            0..=0x0151 => 128,
+            _ => 256,
+        };
+
+        let end = header.base_header.eof_offset as usize - 4 - header_size;
+        //let end = header.base_header.eof_offset as usize - 210;
+
         let mut command_data = Vec::new();
 
         // read until EOF
-        let mut rest = &rest[..header.base_header.eof_offset as usize - 210];
+        let mut rest = &rest[..end];
         let mut i: u32 = 0;
+        let mut byte_offset = 128;
 
         while !rest.is_empty() {
-            let (command, new_rest) =
-                Command::parse(rest).context(ParseCommandVgmSnafu { index: i })?;
+            let (command, new_rest) = Command::parse(rest).context(ParseCommandVgmSnafu {
+                index: i,
+                byte_offset,
+            })?;
+            byte_offset += (rest.len() - new_rest.len()) as u32;
             let code = command.code;
             command_data.push(command);
             if code == 0x66 {
