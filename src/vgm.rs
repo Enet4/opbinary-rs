@@ -284,7 +284,7 @@ pub struct OplVgm {
 }
 
 /// Base header of all VGM files
-#[derive(Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct BaseHeader {
     /// "Vgm " ident
     ///
@@ -338,7 +338,7 @@ impl BaseHeader {
 
 /// A partial view of the VGM header
 /// specifically for keeping data relevant to OPL music.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct OplPartialHeader {
     pub base_header: BaseHeader,
 
@@ -428,7 +428,7 @@ impl OplPartialHeader {
 
 /// A command in a VGM file
 /// which is supported in the context of reading and writing OPL music.
-#[derive(Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum OplCommand {
     /// Command of code `0x5A` (OPL2)
     Opl2 {
@@ -465,6 +465,10 @@ pub enum OplCommand {
     },
 }
 
+/// `OplCommand` has a custom Debug impl
+/// so that OPL commands are printed in a single line
+/// even with pretty-print enabled,
+/// improving readability.
 impl fmt::Debug for OplCommand {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -492,7 +496,7 @@ impl fmt::Debug for OplCommand {
 
 /// An arbitrary command in a VGM file,
 /// uninterpreted
-#[derive(Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct Command {
     /// the code
     pub code: u8,
